@@ -17,7 +17,7 @@ def main():
     st.write('This tool plots binned TEC data from Madrigal.')
     st.write('Daily overview GIF and 3 hour plots are also available.')
     aacgm = False#st.sidebar.checkbox('Use AACGM?')
-    date = st.sidebar.date_input('Date', datetime.date(2017, 10, 20))
+    date = st.sidebar.date_input('Date', datetime.date(2017, 9, 1))
     function = st.sidebar.selectbox('Plot Type', ('Interactive Plotter', '3 Hour Global Plots', 'Daily Movie'))
     if function == 'Interactive Plotter':
         
