@@ -23,12 +23,14 @@ def main():
     if function == 'Interactive Plotter':
         st.title('Total Electron Content Interactive Plotting Tool')
         coordsystem = st.sidebar.selectbox('Coordinate System', ('Geographic', 'AACGMv2', 'IGRF'))
-        supermag = st.sidebar.checkbox('Overlay SuperMAG stations?')
+        supermag = st.sidebar.checkbox('Overlay magnetometers?')
         maxtec = st.sidebar.slider('Max TEC Value to Plot, (TECU)', 0, 50, 20)
         st.sidebar.markdown('TEC units are vertical column density measurments.')
         st.sidebar.markdown('1 TECU = 10^16 electrons/m^2')
         intfactor = st.sidebar.slider('Interpolation Level', 0, 26, 4)
         st.sidebar.markdown('Interpolation level is the minimum number of datapoints in the 3x3x3 matrix of latitude, longitude, and time that are needed to "fill in" the point in question')
+        medfilter = st.sidebar.checkbox('Apply median filtering?')
+        st.sidebar.markdown('Median filtering sets the TEC value of all datapoints to the median of the 3x3x3 matrix of latitude, longitude, and time surrounding it')
         time = st.sidebar.time_input('Time (UT)', datetime.time(12, 00))
         plottype = st.sidebar.selectbox('Plot Layout', ('Northern Hemisphere', 'Southern Hemisphere', 'Global'))
         extent = [0, 0, 0, 0]
@@ -36,7 +38,7 @@ def main():
         extent[1]= st.sidebar.number_input('Maximum Longitude', min_value=-180, max_value=180, value=180)
         extent[2]= st.sidebar.number_input('Minimum Latitude', min_value=-90, max_value=90, value=0)
         extent[3]= st.sidebar.number_input('Maximum Latitude', min_value=-90, max_value=90, value=90)
-        lat, lon, Z = convert(date, time, intfactor, coordsystem)
+        lat, lon, Z = convert(date, time, intfactor, coordsystem, medfilter)
         plot(lat, lon, Z, date, time, intfactor, maxtec, coordsystem, plottype, extent, supermag)
     elif function == '3 Hour Global Plots':
         st.title('Three Hour Global Total Electron Content Plots')
@@ -51,7 +53,7 @@ def showdailyplots(date):
     os.chdir(str(date.year))
     os.chdir(str(date.month))
     os.chdir(str(date.day))
-    st.image('merged_images.png', width = 800)
+    st.image('merged_images.png')
     os.chdir('..')
     os.chdir('..')
     os.chdir('..')
@@ -81,6 +83,13 @@ def interpolate(X, tec, time, factor):
                 X[index] = np.nanmedian(Y)
     return X     
 
+def medianfilter(X, tec, time):
+    for index in np.ndindex(X.shape):
+        if  not (np.isnan(X[index])):
+            Y = tec[(index[0] - 1):(index[0] + 2), (index[1] - 1) : (index[1] + 2), time - 1: time + 2]
+            X[index] = np.nanmedian(Y)
+    return X 
+
 def geotomag(lat,lon,alt,plot_date):
     #call with altitude in kilometers and lat/lon in degrees 
     Re=6371.0 #mean Earth radius in kilometers
@@ -91,14 +100,18 @@ def geotomag(lat,lon,alt,plot_date):
     #return the magnetic coords in the same units as the geographic:
     return cvals.convert('MAG','sph')
 
-def convert(date, time, intfactor, coordsystem):
+def convert(date, time, intfactor, coordsystem, medfilter):
     directory = str(os.getcwd())
     directory = directory + '\\' + str(date.year) + '\\' + str(date.month) + '\\' + str(date.day)
     with np.load(directory + '\\data.npz') as data:
         tec = data['tec']        
         timeint = timeconvert(time)        
         Z = tec[:,:,timeint]
-        Z = interpolate(Z, tec, timeint, intfactor)                
+        
+        Z = interpolate(Z, tec, timeint, intfactor) 
+        if medfilter:
+            Z = medianfilter(Z, tec, timeint)
+                       
         lon = np.linspace(-180, 180, 361)
         lat = np.linspace(-90, 90, 181)
         lon2d = np.empty((180, 360))
