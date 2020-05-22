@@ -22,6 +22,7 @@ def main():
     
     if function == 'Interactive Plotter':
         st.title('Total Electron Content Interactive Plotting Tool')
+        time = st.sidebar.time_input('Time (UT)', datetime.time(12, 00))
         coordsystem = st.sidebar.selectbox('Coordinate System', ('Geographic', 'AACGMv2', 'IGRF'))
         supermag = st.sidebar.checkbox('Overlay magnetometers?')
         maxtec = st.sidebar.slider('Max TEC Value to Plot, (TECU)', 0, 50, 20)
@@ -31,7 +32,7 @@ def main():
         st.sidebar.markdown('Interpolation level is the minimum number of datapoints in the 3x3x3 matrix of latitude, longitude, and time that are needed to "fill in" the point in question')
         medfilter = st.sidebar.checkbox('Apply median filtering?')
         st.sidebar.markdown('Median filtering sets the TEC value of all datapoints to the median of the 3x3x3 matrix of latitude, longitude, and time surrounding it')
-        time = st.sidebar.time_input('Time (UT)', datetime.time(12, 00))
+        rotate = st.sidebar.checkbox('Rotate plot to set top to 12UT? (Polar projections only)')
         plottype = st.sidebar.selectbox('Plot Layout', ('Northern Hemisphere', 'Southern Hemisphere', 'Global'))
         extent = [0, 0, 0, 0]
         extent[0]= st.sidebar.number_input('Minimum Longitude', min_value=-180, max_value=180, value=-180)
@@ -39,7 +40,7 @@ def main():
         extent[2]= st.sidebar.number_input('Minimum Latitude', min_value=-90, max_value=90, value=0)
         extent[3]= st.sidebar.number_input('Maximum Latitude', min_value=-90, max_value=90, value=90)
         lat, lon, Z = convert(date, time, intfactor, coordsystem, medfilter)
-        plot(lat, lon, Z, date, time, intfactor, maxtec, coordsystem, plottype, extent, supermag)
+        plot(lat, lon, Z, date, time, intfactor, maxtec, coordsystem, plottype, extent, supermag, rotate)
     elif function == '3 Hour Global Plots':
         st.title('Three Hour Global Total Electron Content Plots')
         showdailyplots(date)
@@ -136,7 +137,7 @@ def convert(date, time, intfactor, coordsystem, medfilter):
                         first = Z[row,:element+1]
                         second = Z[row,element+1:]
                         Z[row,:] = np.append(second, first)
-            return lat2d, lon2d, Z
+            return int(lat2d), int(lon2d), Z
         elif(coordsystem == 'IGRF'):
             lon = np.linspace(-180, 180, 361)
             lat = np.linspace(-90, 90, 181)
@@ -157,15 +158,18 @@ def convert(date, time, intfactor, coordsystem, medfilter):
 
     
 
-def plot(lat, lon, Z, date, time, intfactor, maxtec, coordsystem, plottype, extent, supermag):
+def plot(lat, lon, Z, date, time, intfactor, maxtec, coordsystem, plottype, extent, supermag, rotate):
 
-        
+    if rotate:
+        central_lon = 180.0 - 15*time.hour - .25*time.minute
+    else:
+        central_lon = 0.0
     tecmap = plt.figure(figsize=(11,8))
     magstations = genfromtxt('20200515-23-45-supermag-stations.csv', delimiter=',')
     if plottype ==  'Northern Hemisphere':
-        map_proj = ccrs.NorthPolarStereo()
+        map_proj = ccrs.NorthPolarStereo(central_longitude=central_lon)
     elif plottype == 'Southern Hemisphere':
-        map_proj = ccrs.SouthPolarStereo()
+        map_proj = ccrs.SouthPolarStereo(central_longitude=central_lon)
     elif plottype == 'Global':
         map_proj = ccrs.PlateCarree()
     if coordsystem=='AACGMv2' or coordsystem=='IGRF':
